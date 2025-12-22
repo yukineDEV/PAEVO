@@ -1,0 +1,4 @@
+repository "PAEVO 2025-11-30_23-41-09/PAEVO@18968354117028@cloud"
+  path "/"
+    br "/main"
+    co "/main"
