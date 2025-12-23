@@ -2873,7 +2873,7 @@ MonoBehaviour:
   entryNode: {fileID: 207677544}
   homePathParent: {fileID: 1739030740}
   baseNode: {fileID: 1014447664}
-  isOut: 1
+  isOut: 0
   isFinished: 0
   isMoving: 0
   currentPointIndex: 0
@@ -9139,7 +9139,7 @@ MonoBehaviour:
   entryNode: {fileID: 1516453077}
   homePathParent: {fileID: 784898100}
   baseNode: {fileID: 2122733924}
-  isOut: 1
+  isOut: 0
   isFinished: 0
   isMoving: 0
   currentPointIndex: 0
@@ -10148,7 +10148,7 @@ MonoBehaviour:
   entryNode: {fileID: 474645933}
   homePathParent: {fileID: 747443913}
   baseNode: {fileID: 2138693526}
-  isOut: 1
+  isOut: 0
   isFinished: 0
   isMoving: 0
   currentPointIndex: 0
@@ -10701,7 +10701,7 @@ MonoBehaviour:
   entryNode: {fileID: 55505561}
   homePathParent: {fileID: 637472068}
   baseNode: {fileID: 973847889}
-  isOut: 1
+  isOut: 0
   isFinished: 0
   isMoving: 0
   currentPointIndex: 0

@@ -1,7 +1,7 @@
 using UnityEngine;
 using TMPro; 
 using UnityEngine.UI; 
-using System.Linq; // Wajib ada untuk cek Array Safe Zone
+using System.Linq; 
 
 public class GameManager : MonoBehaviour
 {
@@ -16,14 +16,30 @@ public class GameManager : MonoBehaviour
     public int activePlayerIndex = 0; 
     public bool isTurnActive = false;
     
-    [Header("Aturan Main")]
-    // Index kotak yang aman (Shield)
-    public int[] safeZones = { 51, 12, 25, 38, 7, 20, 33, 46 };
+    [Header("Aturan Main & Paevo")]
+    // Safe Zone: Start Point & Bintang
+    public int[] safeZones = { 51, 12, 25, 38, 7, 20, 33, 46 }; 
+
+    // Index Kotak Skill (Akan otomatis diisi kalau kosong)
+    public int[] skillZones = { 4, 17, 30, 43 }; 
+
+    // Index Jebakan Tengkorak
+    public int dangerHomeIndex = 2; 
 
     private int lastDiceValue = 0; 
+    private bool eventProcessed = false;
 
     void Start()
     {
+        // --- FITUR ANTI-LUPA INSPECTOR ---
+        // Kalau di Inspector kosong, paksa isi pakai default kode
+        if (skillZones == null || skillZones.Length == 0)
+        {
+            skillZones = new int[] { 4, 17, 30, 43 };
+            Debug.Log("🔧 Auto-Fix: Skill Zones diisi otomatis { 4, 17, 30, 43 }");
+        }
+
+        Debug.Log("✅ GAME MANAGER SIAP! Menunggu kocokan dadu...");
         UpdateDiceButtons();
     }
 
@@ -31,92 +47,140 @@ public class GameManager : MonoBehaviour
     {
         if (isTurnActive)
         {
-            // Tunggu pion berhenti jalan
-            if (!players[activePlayerIndex].isMoving)
+            FollowPath currPlayer = players[activePlayerIndex];
+
+            // Tunggu sampai pion diam (tidak gerak, tidak mundur, tidak geser)
+            if (!currPlayer.isMoving && !currPlayer.isReversing && !currPlayer.isSliding)
             {
-                // 1. Cek Makan Lawan
-                CheckAndCapture();
-                
-                // 2. Akhiri Giliran
-                EndTurn();
+                HandleTurnEvents();
             }
         }
     }
 
-    // LOGIKA MAKAN LAWAN
-    void CheckAndCapture()
+    void HandleTurnEvents()
     {
-        FollowPath killer = players[activePlayerIndex];
+        if (eventProcessed) return; 
 
-        // Syarat Killer: Harus sudah keluar, belum tamat, dan belum masuk jalur kandang
-        if (!killer.isOut || killer.isFinished || killer.hasEnteredHome) return;
+        FollowPath currentPlayer = players[activePlayerIndex];
+        bool eventTriggered = false; 
 
-        // Syarat Safe Zone: Kalau berdiri di bintang, tidak bisa perang
-        if (safeZones.Contains(killer.currentPointIndex))
+        // 👇 DEBUG PENTING: Lapor posisi pion saat berhenti
+        Debug.Log($"📍 CEK POSISI: {currentPlayer.name} berhenti di Index {currentPlayer.currentPointIndex} (Home: {currentPlayer.hasEnteredHome})");
+
+        // --- 1. CEK DANGER ZONE (SLIDE MODE) ---
+        if (currentPlayer.hasEnteredHome && currentPlayer.currentPointIndex == dangerHomeIndex)
         {
-            Debug.Log($"SAFE ZONE: {killer.name} aman di kotak {killer.currentPointIndex}");
-            return;
+            Debug.Log($"⚠️ DANGER ZONE! {currentPlayer.name} Geser ke samping...");
+            
+            int totalMainNodes = 52; 
+            int targetIndex = (currentPlayer.startIndex + 2) % totalMainNodes; 
+            
+            // Geser Langsung
+            currentPlayer.StartSlideEffect(targetIndex);
+            
+            eventTriggered = true;
         }
 
-        // Cari Korban
+        // --- 2. CEK SKILL ZONE (GACHA) ---
+        // Cek apakah index sekarang ada di dalam daftar skillZones?
+        else if (!currentPlayer.hasEnteredHome && skillZones.Contains(currentPlayer.currentPointIndex))
+        {
+             // 👇 INI OUTPUT YANG KAMU CARI
+             Debug.Log($"✨ SKILL GET! {currentPlayer.name} dapat Skill di kotak {currentPlayer.currentPointIndex}");
+             // Nanti logika skillnya ditaruh di sini
+        }
+
+        // --- 3. CEK MAKAN LAWAN (CAPTURE) ---
+        if (!eventTriggered)
+        {
+            eventTriggered = CheckAndCapture();
+        }
+
+        eventProcessed = true; 
+        
+        float delay = eventTriggered ? 0.8f : 0.5f; 
+        Invoke("EndTurn", delay);
+    }
+
+    bool CheckAndCapture()
+    {
+        FollowPath killer = players[activePlayerIndex];
+        bool captured = false;
+
+        if (!killer.isOut || killer.isFinished || killer.hasEnteredHome) return false;
+
+        if (safeZones.Contains(killer.currentPointIndex)) 
+        {
+            Debug.Log($"🛡️ AMAN: {killer.name} di Safe Zone {killer.currentPointIndex}");
+            return false;
+        }
+
         foreach (FollowPath victim in players)
         {
             if (victim == killer) continue;
 
-            // Syarat Korban: Ada di luar, belum tamat, belum masuk kandang sendiri
             if (victim.isOut && !victim.isFinished && !victim.hasEnteredHome)
             {
-                // JIKA POSISI SAMA
                 if (victim.currentPointIndex == killer.currentPointIndex)
                 {
-                    Debug.Log($"⚔️ HIT! {killer.name} memakan {victim.name}");
-                    victim.ResetToBase(); // Tendang Pulang
+                    Debug.Log($"⚔️ HIT! {killer.name} MEMAKAN {victim.name}");
+                    
+                    // Korban mundur ke Base
+                    victim.StartReverseEffect(victim.startIndex, true);
+                    
+                    captured = true;
                 }
             }
         }
+        return captured;
     }
 
     public void RollDice()
     {
         if (isTurnActive) return;
 
+        eventProcessed = false; 
         lastDiceValue = Random.Range(1, 7);
-        // lastDiceValue = 6; // <-- Buka ini kalau mau cheat 6 terus
+        // lastDiceValue = 4; // Cheat
         
+        Debug.Log($"🎲 Pemain {activePlayerIndex} Roll: {lastDiceValue}");
+
         if (diceTexts != null && diceTexts.Length > activePlayerIndex)
         {
              diceTexts[activePlayerIndex].text = lastDiceValue.ToString(); 
         }
         
         SetAllButtonsInteractable(false);
-
-        // Coba Jalan
+        
         bool isMovingSuccess = players[activePlayerIndex].MoveSteps(lastDiceValue);
         
-        if (isMovingSuccess) 
-        {
-            isTurnActive = true;
-        }
+        if (isMovingSuccess) isTurnActive = true;
         else 
         {
-            // Kalau gagal jalan (misal kelebihan langkah finish), langsung skip
+            Debug.Log("🚫 Gagal Jalan (Kandang/Overflow).");
             Invoke("EndTurn", 0.5f); 
         }
     }
 
     void EndTurn()
     {
-        isTurnActive = false;
+        // Pastikan semua animasi selesai
+        if (players[activePlayerIndex].isReversing || players[activePlayerIndex].isSliding) 
+        {
+            Invoke("EndTurn", 0.5f);
+            return;
+        }
 
-        // Cek Bonus Turn (Dapat 6 main lagi)
+        isTurnActive = false;
+        eventProcessed = false;
+
         if (lastDiceValue == 6 && !players[activePlayerIndex].isFinished)
         {
-            Debug.Log("Dapat 6! Main Lagi.");
+            Debug.Log("🎉 Bonus Turn (Angka 6)!");
             UpdateDiceButtons(); 
             return; 
         }
 
-        // Ganti Pemain (Skip yang sudah finish)
         int attempts = 0; 
         do
         {
@@ -126,15 +190,14 @@ public class GameManager : MonoBehaviour
         } 
         while (players[activePlayerIndex].isFinished && attempts < players.Length);
 
-        // Cek Game Over
         if (players[activePlayerIndex].isFinished)
         {
-            Debug.Log("GAME OVER! Semua selesai.");
+            Debug.Log("🏁 GAME OVER!");
             SetAllButtonsInteractable(false);
             return;
         }
 
-        Debug.Log("Giliran: Pemain " + activePlayerIndex);
+        Debug.Log("👉 Giliran Pemain: " + activePlayerIndex);
         UpdateDiceButtons();
     }
 
@@ -159,9 +222,6 @@ public class GameManager : MonoBehaviour
 
     void SetAllButtonsInteractable(bool state)
     {
-        foreach (Button btn in diceButtons)
-        {
-            if (btn != null) btn.interactable = state;
-        }
+        foreach (Button btn in diceButtons) if (btn != null) btn.interactable = state;
     }
 }
