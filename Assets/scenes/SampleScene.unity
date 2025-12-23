@@ -2876,6 +2876,8 @@ MonoBehaviour:
   isOut: 0
   isFinished: 0
   isMoving: 0
+  isReversing: 0
+  isSliding: 0
   currentPointIndex: 0
   hasEnteredHome: 0
 --- !u!1 &535660039
@@ -3214,6 +3216,8 @@ MonoBehaviour:
   activePlayerIndex: 0
   isTurnActive: 0
   safeZones: 0700000014000000210000002e000000
+  skillZones: 04000000110000001e0000002b000000
+  dangerHomeIndex: 2
 --- !u!1 &555566401
 GameObject:
   m_ObjectHideFlags: 0
@@ -9142,6 +9146,8 @@ MonoBehaviour:
   isOut: 0
   isFinished: 0
   isMoving: 0
+  isReversing: 0
+  isSliding: 0
   currentPointIndex: 0
   hasEnteredHome: 0
 --- !u!4 &1435592961
@@ -10151,6 +10157,8 @@ MonoBehaviour:
   isOut: 0
   isFinished: 0
   isMoving: 0
+  isReversing: 0
+  isSliding: 0
   currentPointIndex: 0
   hasEnteredHome: 0
 --- !u!1 &1564726348
@@ -10704,6 +10712,8 @@ MonoBehaviour:
   isOut: 0
   isFinished: 0
   isMoving: 0
+  isReversing: 0
+  isSliding: 0
   currentPointIndex: 0
   hasEnteredHome: 0
 --- !u!1 &1739030739
