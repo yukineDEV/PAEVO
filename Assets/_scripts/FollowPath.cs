@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections.Generic;
+using System.Collections; // Wajib ada untuk Coroutine
 
 public class FollowPath : MonoBehaviour
 {
@@ -9,31 +10,33 @@ public class FollowPath : MonoBehaviour
 
     [Header("Setup Jalur & Base")]
     public Transform pathParent;   
-    public Transform baseNode; // Drag BasePoint masing-masing di sini!
+    public Transform baseNode;     
     public int startIndex = 0;     
-    public float speed = 5f;
+    
+    [Header("Pengaturan Gerak & Audio")]
+    public float speed = 5f;          // ✅ KECEPATAN GESER (Fixed: Ditambahkan kembali)
+    public float jumpSpeed = 5f;      // Kecepatan lompat
+    public float jumpHeight = 0.5f;   // Tinggi lompatan
+    public AudioSource audioSource;   
+    public AudioClip jumpSound;       
 
     [Header("Setup Masuk Kandang")]
     public Transform entryNode;      
     public Transform homePathParent;
     
     [Header("Status Logic")]
-    // JANGAN DICENTANG DI INSPECTOR! Biarkan False saat mulai.
     public bool isOut = false; 
     public bool isFinished = false; 
     public bool isMoving = false;
     public bool isReversing = false; 
     public bool isSliding = false; 
 
-    // STATUS EFEK SKILL
     public bool hasShield = false; 
     public bool isFrozen = false;
 
-    // DATA NAVIGASI
     public int currentPointIndex = 0; 
     public bool hasEnteredHome = false; 
     
-    private int stepsRemaining = 0; 
     private List<Transform> waypoints = new List<Transform>(); 
     private List<Transform> mainPathWaypoints = new List<Transform>(); 
     private List<Transform> reversePath = new List<Transform>(); 
@@ -44,24 +47,24 @@ public class FollowPath : MonoBehaviour
     {
         InitWaypoints(); 
         
-        // POSISIKAN PION DI BASE SAAT GAME MULAI
-        if (baseNode != null) 
-        {
-            transform.position = baseNode.position;
-        }
-        else if (waypoints.Count > startIndex) 
-        {
-            transform.position = waypoints[startIndex].position;
-        }
+        if (baseNode != null) transform.position = baseNode.position;
+        else if (waypoints.Count > startIndex) transform.position = waypoints[startIndex].position;
         
-        // Reset index ke start
         currentPointIndex = startIndex; 
+
+        // ✅ AUTO DETECT AUDIO
+        // Jika AudioSource belum di-drag, cari otomatis
+        if (audioSource == null) audioSource = GetComponent<AudioSource>();
+        
+        // Jika JumpSound belum di-drag di script, coba ambil dari AudioSource
+        if (jumpSound == null && audioSource != null) {
+            jumpSound = audioSource.clip;
+        }
     }
 
     void OnMouseDown()
     {
-        // Hubungkan klik mouse ke GameManager
-        if (GameManager.Instance != null)
+        if (GameManager.Instance != null && !isMoving && !isReversing && !isSliding)
         {
             GameManager.Instance.OnPawnClicked(this);
         }
@@ -71,7 +74,6 @@ public class FollowPath : MonoBehaviour
     {
         waypoints.Clear();
         mainPathWaypoints.Clear(); 
-        
         if (pathParent != null)
         {
             foreach (Transform child in pathParent) {
@@ -81,71 +83,101 @@ public class FollowPath : MonoBehaviour
         }
     }
 
-    // --- LOGIKA KELUAR DARI BASE (RULE OF 6) ---
     public void LeaveBase()
     {
-        if (isOut) return; // Kalau sudah keluar, abaikan
+        if (isOut) return;
         
         isOut = true;
         isMoving = false;
         hasEnteredHome = false;
         
-        // Pindah visual ke titik Start
-        if (waypoints.Count > startIndex) 
-        {
-            transform.position = waypoints[startIndex].position;
-        }
-            
+        if (waypoints.Count > startIndex) transform.position = waypoints[startIndex].position;
         currentPointIndex = startIndex;
-        Debug.Log($"{name} KELUAR DARI KANDANG! (Status IsOut = True)");
+        Debug.Log($"{name} KELUAR DARI KANDANG!");
+
+        // Mainkan suara saat keluar
+        if(audioSource && jumpSound) audioSource.PlayOneShot(jumpSound);
     }
 
-   // --- UPDATE FUNGSI INI DI FOLLOWPATH.CS ---
     public bool CheckPossibleMove(int steps)
     {
-        // DEBUGGER: Cek kenapa ditolak
-        if (isFinished) { return false; }
-        if (isReversing) { return false; }
-        if (isSliding) { return false; }
-        if (isFrozen) { return false; }
-        if (isMoving) { return false; }
-        
-        if (!isOut) { 
-            // Jangan spam log kalau emang belum keluar
-            return false; 
-        }
+        if (isFinished || isReversing || isSliding || isFrozen || isMoving) return false; 
+        if (!isOut) return false; 
+        if (waypoints == null || waypoints.Count == 0) return false;
 
-        // Cek apakah Waypoints (Jalur) Kosong? (Sering terjadi saat Duplicate)
-        if (waypoints == null || waypoints.Count == 0) {
-            Debug.LogError($"⛔ ERROR: {name} tidak punya Jalur (Waypoints 0). Cek Inspector 'Path Parent'!");
-            return false;
-        }
-
-        // Cek Sisa Langkah ke Home
         if (hasEnteredHome) {
             int stepsToEnd = (waypoints.Count - 1) - currentPointIndex;
-            if (steps > stepsToEnd) {
-                Debug.Log($"🚫 {name} ditolak: Langkah {steps} kejauhan (Sisa {stepsToEnd}).");
-                return false; 
-            }
+            if (steps > stepsToEnd) return false; 
         }
-
-        // Kalau lolos semua, berarti AMAN
         return true; 
     }
 
-    // --- EKSEKUSI JALAN ---
     public bool MoveSteps(int steps)
     {
-        // Validasi ulang (Double Check)
         if (!CheckPossibleMove(steps)) return false;
-
-        stepsRemaining = steps;
-        isMoving = true;
+        StartCoroutine(MoveRoutine(steps));
         return true; 
     }
 
-    // --- RESET KE BASE (EFEK DIMAKAN/KICK) ---
+    // --- LOGIKA LOMPAT ---
+    IEnumerator MoveRoutine(int steps)
+    {
+        isMoving = true;
+
+        for (int i = 0; i < steps; i++)
+        {
+            int nextIndex = currentPointIndex + 1;
+            if (!hasEnteredHome && nextIndex >= waypoints.Count) nextIndex = 0;
+            
+            Transform startNode = waypoints[currentPointIndex];
+            Transform targetNode = waypoints[nextIndex];
+
+            // 🔊 Play Sound
+            if (audioSource != null && jumpSound != null) 
+                audioSource.PlayOneShot(jumpSound);
+
+            Vector3 startPos = transform.position;
+            Vector3 endPos = targetNode.position;
+            float journey = 0f;
+
+            while (journey <= 1f)
+            {
+                journey += Time.deltaTime * jumpSpeed;
+                Vector3 currentPos = Vector3.Lerp(startPos, endPos, journey);
+                // Efek Parabola (Lompat)
+                float height = Mathf.Sin(journey * Mathf.PI) * jumpHeight;
+                currentPos.y += height;
+                transform.position = currentPos;
+                yield return null; 
+            }
+
+            transform.position = endPos;
+
+            if (!hasEnteredHome && targetNode == entryNode && homePathParent != null) {
+                SwitchToHomePath();
+            } 
+            else {
+                currentPointIndex = nextIndex;
+            }
+
+            if (hasEnteredHome && currentPointIndex >= waypoints.Count - 1) {
+                isFinished = true; 
+                transform.localScale = Vector3.one * 0.5f; 
+                Debug.Log("🎉 FINISH!");
+                break; 
+            }
+        }
+        isMoving = false;
+    }
+
+    void SwitchToHomePath()
+    {
+        hasEnteredHome = true;
+        waypoints.Clear();
+        foreach (Transform child in homePathParent) waypoints.Add(child);
+        currentPointIndex = -1; 
+    }
+
     public void ResetToBase()
     {
         if (hasShield) {
@@ -153,68 +185,46 @@ public class FollowPath : MonoBehaviour
             hasShield = false; return;
         }
 
-        isOut = false; 
-        isMoving = false; 
-        isFinished = false; 
-        hasEnteredHome = false; 
-        isSliding = false; 
-        isReversing = false;
-        hasShield = false; 
-        isFrozen = false;
+        StopAllCoroutines(); 
+        isOut = false; isMoving = false; isFinished = false; 
+        hasEnteredHome = false; isSliding = false; isReversing = false;
+        hasShield = false; isFrozen = false;
 
         currentPointIndex = startIndex; 
-        
-        // Reset jalur ke jalur utama
-        waypoints.Clear(); 
-        waypoints.AddRange(mainPathWaypoints);
-        
-        // Balik ke tempat duduk
+        waypoints.Clear(); waypoints.AddRange(mainPathWaypoints);
         if (baseNode != null) transform.position = baseNode.position;
     }
 
-    // --- SKILL: TELEPORT (SWAP) ---
     public void TeleportToPosition(int targetIndex, Vector3 worldPos)
     {
+        StopAllCoroutines();
         currentPointIndex = targetIndex;
         hasEnteredHome = false; 
-        
+        isMoving = false;
         waypoints.Clear(); 
         waypoints.AddRange(mainPathWaypoints);
-        
         transform.position = worldPos;
     }
 
-    // --- SKILL: SLIDE (MAJU/SAFE ZONE) ---
     public void StartSlideEffect(int targetIndex)
     {
+        StopAllCoroutines();
         isMoving = false; isReversing = false; isSliding = true; 
-        
-        if (mainPathWaypoints.Count > targetIndex)
-            slideTargetNode = mainPathWaypoints[targetIndex];
-        
+        if (mainPathWaypoints.Count > targetIndex) slideTargetNode = mainPathWaypoints[targetIndex];
         hasEnteredHome = false; 
         currentPointIndex = targetIndex;
-        
-        waypoints.Clear(); 
-        waypoints.AddRange(mainPathWaypoints);
+        waypoints.Clear(); waypoints.AddRange(mainPathWaypoints);
     }
 
-    // --- SKILL: REVERSE (MUNDUR/PULL) ---
     public void StartReverseEffect(int targetIndex, bool backToBase)
     {
-        if (backToBase && hasShield) {
-            Debug.Log($"🛡️ {gameObject.name} BLOCK MUNDUR (Shield)!");
-            hasShield = false; return;
-        }
+        if (backToBase && hasShield) { hasShield = false; return; }
 
-        isMoving = false; 
-        isReversing = true; 
-        isSliding = false;
-        
+        StopAllCoroutines();
+        isMoving = false; isReversing = true; isSliding = false;
         reversePath.Clear();
+
         int currentTrack = currentPointIndex;
-        
-        // Logic mundur dari home path
         if (hasEnteredHome) {
             for (int i = currentTrack; i >= 0; i--)
                 if(i < waypoints.Count) reversePath.Add(waypoints[i]);
@@ -222,24 +232,18 @@ public class FollowPath : MonoBehaviour
         }
 
         int safetyLoop = 0;
-        // Cari jalur mundur di papan utama
         while (currentTrack != targetIndex && safetyLoop < 100) {
             if(currentTrack >= 0 && currentTrack < mainPathWaypoints.Count)
                 reversePath.Add(mainPathWaypoints[currentTrack]);
-
             currentTrack--;
             if (currentTrack < 0) currentTrack = mainPathWaypoints.Count - 1; 
             safetyLoop++;
         }
         
-        if (mainPathWaypoints.Count > targetIndex)
-            reversePath.Add(mainPathWaypoints[targetIndex]);
-
+        if (mainPathWaypoints.Count > targetIndex) reversePath.Add(mainPathWaypoints[targetIndex]);
         if (backToBase && baseNode != null) reversePath.Add(baseNode);
 
         reverseIndex = 0;
-        
-        // Reset status jika pulang ke base
         if (backToBase) {
             isOut = false; hasEnteredHome = false; currentPointIndex = startIndex;
             waypoints.Clear(); waypoints.AddRange(mainPathWaypoints);
@@ -249,7 +253,7 @@ public class FollowPath : MonoBehaviour
 
     void Update()
     {
-        // 1. Logic SLIDE
+        // 1. Logic SLIDE (Sekarang aman karena variabel 'speed' sudah ada)
         if (isSliding) {
             if (slideTargetNode != null) {
                 transform.position = Vector3.MoveTowards(transform.position, slideTargetNode.position, speed * Time.deltaTime);
@@ -260,7 +264,7 @@ public class FollowPath : MonoBehaviour
             return;
         }
 
-        // 2. Logic REVERSE
+        // 2. Logic REVERSE (Sekarang aman)
         if (isReversing) {
             if (reverseIndex < reversePath.Count) {
                 Transform target = reversePath[reverseIndex];
@@ -270,7 +274,6 @@ public class FollowPath : MonoBehaviour
             else 
             {
                 isReversing = false;
-                // PENTING: Update data lokasi setelah mundur selesai
                 if (reversePath.Count > 0) {
                     Transform finalNode = reversePath[reversePath.Count - 1];
                     if (finalNode != baseNode) { 
@@ -285,42 +288,5 @@ public class FollowPath : MonoBehaviour
             }
             return; 
         }
-
-        // 3. Logic MOVE NORMAL
-        if (!isMoving || isFinished) return;
-        
-        int nextIndex = currentPointIndex + 1;
-        if (!hasEnteredHome && nextIndex >= waypoints.Count) nextIndex = 0; 
-        
-        Transform targetNode = waypoints[nextIndex];
-        transform.position = Vector3.MoveTowards(transform.position, targetNode.position, speed * Time.deltaTime);
-
-        if (Vector3.Distance(transform.position, targetNode.position) < 0.05f) {
-            transform.position = targetNode.position;
-            
-            // Cek masuk Home Path
-            if (!hasEnteredHome && targetNode == entryNode && homePathParent != null) 
-                SwitchToHomePath(); 
-            else 
-                currentPointIndex = nextIndex;
-
-            // Cek Finish
-            if (hasEnteredHome && currentPointIndex >= waypoints.Count - 1) {
-                isFinished = true; isMoving = false; 
-                transform.localScale = Vector3.one * 0.5f; // Kecilin pion tanda finish
-                return;
-            }
-            
-            stepsRemaining--; 
-            if (stepsRemaining <= 0) isMoving = false;
-        }
-    }
-
-    void SwitchToHomePath()
-    {
-        hasEnteredHome = true;
-        waypoints.Clear();
-        foreach (Transform child in homePathParent) waypoints.Add(child);
-        currentPointIndex = -1; 
     }
 }
