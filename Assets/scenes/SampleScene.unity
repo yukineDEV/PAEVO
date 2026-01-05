@@ -4380,7 +4380,7 @@ MonoBehaviour:
   pullIcon: {fileID: 2120532870655542143, guid: 0b8046384362a45419e004b7dbdadf96, type: 3}
   extraBlockIcon: {fileID: 6548736703099896190, guid: 1f0dbe947657d8a44a89b9a9ede0b9a9, type: 3}
   bgmSource: {fileID: 552263817}
-  sfxSource: {fileID: 552263817}
+  sfxSource: {fileID: 552263816}
   backgroundMusic: {fileID: 8300000, guid: 9c34de7b2f930d14489ad2fcd4b18400, type: 3}
   moveStepSound: {fileID: 8300000, guid: e7dcd404c44798944b3897d737141aef, type: 3}
   returnToBaseSound: {fileID: 8300000, guid: bf46c48fe744eed4781a86eaf532f4f2, type: 3}
