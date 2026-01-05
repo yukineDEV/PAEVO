@@ -679,10 +679,10 @@ PlayerSettings:
   captureStartupLogs: {}
   activeInputHandler: 2
   windowsGamepadBackendHint: 0
-  cloudProjectId: 90c021aa-6f2a-43f6-83d7-ab7dddf1fc04
+  cloudProjectId: bde1f89d-0c83-4391-baab-ec7e338d94d8
   framebufferDepthMemorylessMode: 0
   qualitySettingsNames: []
-  projectName: PAEVO 2025-11-30_23-41-09
+  projectName: PAEVO_2
   organizationId: unity_23523177
   cloudEnabled: 0
   legacyClampBlendShapeWeights: 0

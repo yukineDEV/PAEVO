@@ -51,6 +51,7 @@
     <Compile Include="Assets\_scripts\PatchVIsualizer.cs" />
     <Compile Include="Assets\_scripts\GameManager.cs" />
     <Compile Include="Assets\_scripts\FollowPath.cs" />
+    <Compile Include="Assets\_scripts\MainMenuManager.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Assets\TextMesh Pro\Shaders\TMPro.cginc" />
