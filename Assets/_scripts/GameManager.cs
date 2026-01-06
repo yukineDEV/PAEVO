@@ -13,11 +13,7 @@ public class GameManager : MonoBehaviour
 {
     public static GameManager Instance;
 
-    // ==========================================
-    // 1. REFERENSI PEMAIN
-    // ==========================================
-    [Header("URUTAN ARRAY PLAYERS (PENTING!):")]
-    [Header("0-3: Blue | 4-7: Red | 8-11: Green | 12-15: Yellow")]
+    [Header("Daftar Pemain (URUTAN WAJIB: 0-3=Blue, 4-7=Red, 8-11=Green, 12-15=Yellow)")]
     public FollowPath[] players; 
 
     [System.Serializable]
@@ -63,7 +59,6 @@ public class GameManager : MonoBehaviour
     public bool isTurnActive = false;
     public bool isWaitingForMove = false;
 
-    // Variabel Internal
     private SkillType[,] skillInventory = new SkillType[4, 3];
     private bool isTargetingMode = false;
     private bool isDicePickingMode = false;
@@ -73,6 +68,9 @@ public class GameManager : MonoBehaviour
     private int selectedSlot = -1;
     private int storedTurnIndex = -1;
     private bool eventProcessed = false; 
+    
+    // [FIX BUG SKILL] Flag untuk membedakan gerak dadu vs gerak skill
+    private bool isSkillAction = false; 
 
     private FollowPath pullAnchorPawn = null;
     private bool isSelectingPullAnchor = false;
@@ -285,7 +283,6 @@ public class GameManager : MonoBehaviour
 
         if (isWaitingForMove)
         {
-            // --- DEBUGGER FIX: CEK APAKAH PEMAIN SALAH KLIK ---
             if (clickedPawn.ownerPlayerIndex != activePlayerIndex) 
             { 
                 Debug.Log($"❌ SALAH PION! Giliran: Player {activePlayerIndex}, Kamu Klik: Player {clickedPawn.ownerPlayerIndex} ({clickedPawn.name})"); 
@@ -294,13 +291,14 @@ public class GameManager : MonoBehaviour
             
             if (clickedPawn.isFinished) return;
 
-            // [VALIDASI WAJIB ANGKA 6]
             if (!clickedPawn.isOut && lastDiceValue != 6)
             {
                 Debug.Log($"⛔ {clickedPawn.name} butuh angka 6 untuk keluar! (Dadu: {lastDiceValue})");
                 return;
             }
 
+            // Normal move (Dice) -> bisa dapat skill
+            isSkillAction = false; 
             ExecuteMove(clickedPawn);
         }
     }
@@ -316,7 +314,9 @@ public class GameManager : MonoBehaviour
             if (clickedPawn.MoveSteps(lastDiceValue))
             {
                 skillInventory[skillUserIndex, selectedSlot] = SkillType.None;
-                isDicePickingMode = false; isTurnActive = true; UpdateAllSkillUI();
+                isDicePickingMode = false; isTurnActive = true; 
+                isSkillAction = false; // Dice via skill masih dihitung move biasa
+                UpdateAllSkillUI();
             }
             return;
         }
@@ -361,21 +361,26 @@ public class GameManager : MonoBehaviour
         switch (skill)
         {
             case SkillType.Shield: pawn.hasShield = true; break;
-            case SkillType.FreezeEnemy: pawn.isFrozen = true; break;
+            case SkillType.FreezeEnemy: pawn.FreezeWithAnim(); break;
             case SkillType.PullEnemy: 
                 if (pullAnchorPawn != null) {
                     int targetPos = pullAnchorPawn.currentPointIndex - 1; 
                     if (targetPos < 0) targetPos = 51;
                     pawn.StartReverseEffect(targetPos, false);
                     isTurnActive = true; eventProcessed = false;
+                    isSkillAction = true; // [FIX] Tandai ini aksi skill
                 }
                 break;
             case SkillType.ExtraBlock: 
                 int forwardPos = (pawn.currentPointIndex + 2) % 52;
-                pawn.StartSlideEffect(forwardPos); isTurnActive = true; eventProcessed = false;
+                pawn.StartSlideEffect(forwardPos); 
+                isTurnActive = true; eventProcessed = false;
+                isSkillAction = true; // [FIX] Tandai ini aksi skill
                 break;
             case SkillType.TeleportSafe: 
-                pawn.StartSlideEffect(FindNearestSafeZone(pawn.currentPointIndex)); isTurnActive = true; eventProcessed = false;
+                pawn.StartSlideEffect(FindNearestSafeZone(pawn.currentPointIndex)); 
+                isTurnActive = true; eventProcessed = false;
+                isSkillAction = true; // [FIX] Tandai ini aksi skill
                 break;
         }
     }
@@ -434,7 +439,11 @@ public class GameManager : MonoBehaviour
 
         List<FollowPath> validPawns = GetValidPawns(activePlayerIndex, lastDiceValue);
         if (validPawns.Count == 0) Invoke(nameof(EndTurn), 1.0f);
-        else if (validPawns.Count == 1) ExecuteMove(validPawns[0]);
+        else if (validPawns.Count == 1) 
+        {
+            isSkillAction = false; // Normal auto-move
+            ExecuteMove(validPawns[0]);
+        }
         else { isWaitingForMove = true; }
         isDiceRolling = false;
     }
@@ -468,16 +477,22 @@ public class GameManager : MonoBehaviour
         p2.TeleportToPosition(p1_Index, p1_Pos); p2.isOut = p1_isOut;
         
         Debug.Log($"🔀 SWAP SUCCESS: {p1.name} <-> {p2.name}");
+        isSkillAction = true; // [FIX] Tandai ini aksi skill (jangan kasih skill baru)
     }
 
-    // [INI FUNGSI YANG TADI ERROR / HILANG]
     void HandleTurnEvents()
     {
         if (eventProcessed || players == null) return;
-        foreach (var p in players) {
-            if (p != null && p.ownerPlayerIndex == activePlayerIndex && p.isOut && !p.isFinished && !p.hasEnteredHome && skillZones.Contains(p.currentPointIndex))
-                GetRandomSkill(p);
+
+        // [FIX] Hanya berikan Skill baru jika BUKAN aksi skill (Swap/Pull/Slide)
+        if (!isSkillAction) 
+        {
+            foreach (var p in players) {
+                if (p != null && p.ownerPlayerIndex == activePlayerIndex && p.isOut && !p.isFinished && !p.hasEnteredHome && skillZones.Contains(p.currentPointIndex))
+                    GetRandomSkill(p);
+            }
         }
+
         bool captured = CheckAndCapture();
         eventProcessed = true;
         if (captured) Invoke(nameof(ResetTurnForBonus), 1.0f);
@@ -488,6 +503,7 @@ public class GameManager : MonoBehaviour
     {
         isTurnActive = false; isWaitingForMove = false; eventProcessed = false;
         isTargetingMode = false; isDicePickingMode = false;
+        isSkillAction = false; // Reset flag
         UpdateDiceButtons(); UpdateAllSkillUI();
     }
 
@@ -529,6 +545,7 @@ public class GameManager : MonoBehaviour
         do { activePlayerIndex++; if (activePlayerIndex >= 4) activePlayerIndex = 0; attempts++; }
         while (IsPlayerFinished(activePlayerIndex) && attempts < 4);
         
+        isSkillAction = false; // Reset flag untuk giliran baru
         Debug.Log($"🔄 Ganti Giliran ke: Player {activePlayerIndex}");
         UpdateDiceButtons(); UpdateAllSkillUI();
     }
@@ -588,11 +605,15 @@ public class GameManager : MonoBehaviour
     void UpdateDiceButtons()
     {
         if (diceButtons == null) return;
-        for (int i = 0; i < diceButtons.Length; i++) {
+        for (int i = 0; i < diceButtons.Length; i++)
+        {
             if (diceButtons[i] == null) continue;
+            
             bool myTurn = (i == activePlayerIndex && !IsPlayerFinished(i));
             diceButtons[i].interactable = myTurn;
-            diceButtons[i].transform.localScale = myTurn ? Vector3.one * 1.1f : Vector3.one;
+
+            // [FIX] Matikan efek membesar agar dadu tidak 'naik'
+            diceButtons[i].transform.localScale = Vector3.one; 
         }
     }
 

@@ -127,6 +127,7 @@ MonoBehaviour:
   currentPointIndex: 0
   hasEnteredHome: 0
   originalScale: {x: 0, y: 0, z: 0}
+  baseDirection: 0
   animator: {fileID: 0}
   isRunningMove: 0
 --- !u!136 &4521703941781811567
