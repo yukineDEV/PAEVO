@@ -1,0 +1,3 @@
+C:\INFORMATIKA\SEMESTER 5\PEGIM\PAEVO\Library\Bee\Android\Prj\IL2CPP\Gradle\unityLibrary\src\main\cpp\CMakeLists.txt
+C:\INFORMATIKA\SEMESTER 5\PEGIM\PAEVO\Library\Bee\Android\Prj\IL2CPP\Gradle\unityLibrary\src\main\cpp\FramePacing\CMakeLists.txt
+C:\INFORMATIKA\SEMESTER 5\PEGIM\PAEVO\Library\Bee\Android\Prj\IL2CPP\Gradle\unityLibrary\src\main\cpp\GameActivity\CMakeLists.txt
